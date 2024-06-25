@@ -13,32 +13,83 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
-
-    ui->stackedWidget->setCurrentWidget(ui->gamePage);
-
-    // connect(ui->loginButton, &QPushButton::clicked, this, &MainWindow::onLoginButtonClicked);
-    // connect(ui->resetButton, &QPushButton::clicked, this, &MainWindow::onResetButtonClicked);
-
-    // for (int i = 0; i < 9; ++i) {
-    //     QPushButton *cardButton = findChild<QPushButton*>(QString("card%1").arg(i + 1));
-    //     if (cardButton) {
-    //         connect(cardButton, &QPushButton::clicked, this, &MainWindow::onCardClicked);
-    //     }
-    // }
-
-    // resetGame();
-    // loadGame();
+    ui->stackedWidget->setCurrentWidget(ui->mainPage);
+    loadTransactions();
 }
 
 MainWindow::~MainWindow() {
     delete ui;
 }
 
+void MainWindow::loadTransactions() {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Could not open transactions file");
+        return;
+    }
 
+    QTextStream in(&file);
+    QVector<Transaction> transactions;
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QStringList fields = line.split(',');
 
+        if (fields.size() != 4) {
+            continue; // Skip malformed lines
+        }
 
+        Transaction transaction;
+        transaction.amount = fields[0];
+        transaction.walletNumber = fields[1];
+        transaction.date = fields[2];
+        transaction.hash = QByteArray::fromHex(fields[3].toUtf8());
 
+        transactions.append(transaction);
+    }
 
+    displayTransactions(transactions);
+}
+
+QByteArray MainWindow::calculateHash(const Transaction &transaction, const QByteArray &previousHash) {
+    QString concatenatedString = transaction.amount + transaction.walletNumber + transaction.date + QString(previousHash.toHex());
+    QByteArray data = concatenatedString.toUtf8();
+    auto hash = QCryptographicHash::hash(data, QCryptographicHash::Sha256);
+    QString readableHash = QString::fromUtf8(hash.toHex());
+    qDebug() << "transaction:" << concatenatedString;
+    qDebug() << "previousHash:" << previousHash.toHex();
+    qDebug() << "Hash for transaction:" << readableHash;
+    return hash;
+}
+
+void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
+    QByteArray previousHash;
+    bool hashMismatch = false;
+
+    ui->transactionsList->clear();
+
+    QString headerText = "Сумма, Номер кошелька, Дата, Хэш\n";
+    ui->transactionsList->appendPlainText(headerText);
+
+    for (const Transaction &transaction : transactions) {
+        QByteArray calculatedHash = calculateHash(transaction, previousHash);
+        bool hashesMatch = (calculatedHash == transaction.hash);
+
+        QString displayText = QString("%1, %2, %3, %4").arg(transaction.amount, transaction.walletNumber, transaction.date, transaction.hash.toHex());
+
+        QTextCursor cursor(ui->transactionsList->textCursor());
+        cursor.movePosition(QTextCursor::End);
+        if (!hashesMatch || hashMismatch) {
+            hashMismatch = true;
+            QTextCharFormat format;
+            format.setForeground(Qt::red);
+            cursor.insertText(displayText + '\n', format);
+        } else {
+            cursor.insertText(displayText + '\n');
+        }
+
+        previousHash = transaction.hash;
+    }
+}
 
 int MainWindow::decryptQByteArray(const QByteArray& encryptedBytes, QByteArray& decryptedBytes, unsigned char *key)
 {
