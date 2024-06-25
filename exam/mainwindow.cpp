@@ -133,7 +133,7 @@ void MainWindow::loadTransactions() {
 
 QByteArray MainWindow::decryptFile(const QString &filePath, const QString &key)
 {
-    iv = QByteArray::fromHex("17e8e506e37fd4d63c2cfb6b85f8cfc2");
+    QByteArray iv = QByteArray::fromHex("17e8e506e37fd4d63c2cfb6b85f8cfc2");
 
     if (key.isEmpty() || key.length() != 64) {
         QMessageBox::warning(this, "Ошибка", "Неверный ключ для расшифровки. Длина ключа должна быть 64 символа.");

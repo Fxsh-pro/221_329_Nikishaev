@@ -38,7 +38,6 @@ private:
 
     QByteArray calculateHash(const Transaction &transaction, const QByteArray &previousHash);
     void displayTransactions(const QVector<Transaction> &transactions);
-    QByteArray iv;
 
     QByteArray decryptFile(const QString &filePath, const QString &key);
 
