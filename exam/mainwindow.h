@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QVector>
 #include <QFile>
+#include <QFileDialog>
 #include "ui_mainwindow.h"
 
 QT_BEGIN_NAMESPACE
@@ -27,13 +28,13 @@ public:
 
 private slots:
     void loadTransactions();
+    void openFile();
+
 
 private:
 
     Ui::MainWindow *ui;
-    QPlainTextEdit *transactionDisplay;
 
-    int correctPinCode = 1234;
     QString filePath = "D:/educ-2c2s-cryptographic/exam/transactions.csv";
 
     QByteArray calculateHash(const Transaction &transaction, const QByteArray &previousHash);

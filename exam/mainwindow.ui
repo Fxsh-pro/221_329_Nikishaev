@@ -183,6 +183,19 @@ QStackedWidget QWidget {
          <bool>true</bool>
         </property>
        </widget>
+       <widget class="QPushButton" name="uploadFileButton">
+        <property name="geometry">
+         <rect>
+          <x>570</x>
+          <y>560</y>
+          <width>201</width>
+          <height>71</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Загрузить файл</string>
+        </property>
+       </widget>
       </widget>
      </widget>
     </item>

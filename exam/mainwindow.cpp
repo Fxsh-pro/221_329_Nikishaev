@@ -12,8 +12,13 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
+
     ui->setupUi(this);
     ui->stackedWidget->setCurrentWidget(ui->mainPage);
+
+    connect(ui->uploadFileButton, &QPushButton::clicked, this, &MainWindow::openFile);
+
+
     loadTransactions();
 }
 
@@ -35,7 +40,7 @@ void MainWindow::loadTransactions() {
         QStringList fields = line.split(',');
 
         if (fields.size() != 4) {
-            continue; // Skip malformed lines
+            continue;
         }
 
         Transaction transaction;
@@ -61,35 +66,79 @@ QByteArray MainWindow::calculateHash(const Transaction &transaction, const QByte
     return hash;
 }
 
+// void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
+//     QByteArray previousHash;
+//     bool hashMismatch = false;
+
+//     ui->transactionsList->clear();
+
+//     QString headerText = "Сумма, Номер кошелька, Дата, Хэш\n";
+//     ui->transactionsList->appendPlainText(headerText);
+
+//     for (const Transaction &transaction : transactions) {
+//         QByteArray calculatedHash = calculateHash(transaction, previousHash);
+//         bool hashesMatch = (calculatedHash == transaction.hash);
+
+//         QString displayText = QString("%1, %2, %3, %4").arg(transaction.amount, transaction.walletNumber, transaction.date, transaction.hash.toHex());
+
+//         QTextCursor cursor(ui->transactionsList->textCursor());
+//         cursor.movePosition(QTextCursor::End);
+
+//         if (!hashesMatch || hashMismatch) {
+//             hashMismatch = true;
+//             QTextCharFormat format;
+//             format.setForeground(Qt::red);
+//             cursor.insertText(displayText + '\n', format);
+//         } else {
+//             cursor.insertText(displayText + '\n');
+//         }
+
+//         previousHash = transaction.hash;
+//     }
+// }
+
 void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
     QByteArray previousHash;
-    bool hashMismatch = false;
+    bool hashMismatch = false;  // Reset hashMismatch for each file load
 
     ui->transactionsList->clear();
 
     QString headerText = "Сумма, Номер кошелька, Дата, Хэш\n";
-    ui->transactionsList->appendPlainText(headerText);
+
+    QTextCursor cursor(ui->transactionsList->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    QTextCharFormat headerFormat;
+    cursor.insertText(headerText, headerFormat);
 
     for (const Transaction &transaction : transactions) {
         QByteArray calculatedHash = calculateHash(transaction, previousHash);
         bool hashesMatch = (calculatedHash == transaction.hash);
 
-        QString displayText = QString("%1, %2, %3, %4").arg(transaction.amount, transaction.walletNumber, transaction.date, transaction.hash.toHex());
+        QString displayText = QString("%1, %2, %3, %4\n")
+                                  .arg(transaction.amount, transaction.walletNumber, transaction.date, transaction.hash.toHex());
 
-        QTextCursor cursor(ui->transactionsList->textCursor());
-        cursor.movePosition(QTextCursor::End);
+        QTextCharFormat format;
         if (!hashesMatch || hashMismatch) {
-            hashMismatch = true;
-            QTextCharFormat format;
             format.setForeground(Qt::red);
-            cursor.insertText(displayText + '\n', format);
-        } else {
-            cursor.insertText(displayText + '\n');
+            hashMismatch = true;
         }
+
+        cursor.insertText(displayText, format);
 
         previousHash = transaction.hash;
     }
 }
+
+
+void MainWindow::openFile() {
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), tr("CSV Files (*.csv)"));
+    if (!fileName.isEmpty()) {
+        filePath = fileName;
+        loadTransactions();
+    }
+}
+
+
 
 int MainWindow::decryptQByteArray(const QByteArray& encryptedBytes, QByteArray& decryptedBytes, unsigned char *key)
 {
