@@ -17,8 +17,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->stackedWidget->setCurrentWidget(ui->mainPage);
 
     connect(ui->uploadFileButton, &QPushButton::clicked, this, &MainWindow::openFile);
-
-
+    loadPincode();
+    qDebug() << "PINCODE  " + pincode;
     loadTransactions();
 }
 
@@ -26,34 +26,24 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
-void MainWindow::loadTransactions() {
-    QFile file(filePath);
+void MainWindow::loadPincode() {
+    QString pincodeFilePath = "D:/educ-2c2s-cryptographic/exam/pincode.txt";
+    QFile file(pincodeFilePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "Error", "Could not open transactions file");
+        QMessageBox::critical(this, "Error", "Could not open pincode file");
         return;
     }
 
     QTextStream in(&file);
-    QVector<Transaction> transactions;
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList fields = line.split(',');
-
-        if (fields.size() != 4) {
-            continue;
-        }
-
-        Transaction transaction;
-        transaction.amount = fields[0];
-        transaction.walletNumber = fields[1];
-        transaction.date = fields[2];
-        transaction.hash = QByteArray::fromHex(fields[3].toUtf8());
-
-        transactions.append(transaction);
+    if (!in.atEnd()) {
+        pincode = in.readLine().trimmed();
+    } else {
+        QMessageBox::critical(this, "Error", "Pincode file is empty");
     }
 
-    displayTransactions(transactions);
+    file.close();
 }
+
 
 QByteArray MainWindow::calculateHash(const Transaction &transaction, const QByteArray &previousHash) {
     QString concatenatedString = transaction.amount + transaction.walletNumber + transaction.date + QString(previousHash.toHex());
@@ -66,40 +56,9 @@ QByteArray MainWindow::calculateHash(const Transaction &transaction, const QByte
     return hash;
 }
 
-// void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
-//     QByteArray previousHash;
-//     bool hashMismatch = false;
-
-//     ui->transactionsList->clear();
-
-//     QString headerText = "Сумма, Номер кошелька, Дата, Хэш\n";
-//     ui->transactionsList->appendPlainText(headerText);
-
-//     for (const Transaction &transaction : transactions) {
-//         QByteArray calculatedHash = calculateHash(transaction, previousHash);
-//         bool hashesMatch = (calculatedHash == transaction.hash);
-
-//         QString displayText = QString("%1, %2, %3, %4").arg(transaction.amount, transaction.walletNumber, transaction.date, transaction.hash.toHex());
-
-//         QTextCursor cursor(ui->transactionsList->textCursor());
-//         cursor.movePosition(QTextCursor::End);
-
-//         if (!hashesMatch || hashMismatch) {
-//             hashMismatch = true;
-//             QTextCharFormat format;
-//             format.setForeground(Qt::red);
-//             cursor.insertText(displayText + '\n', format);
-//         } else {
-//             cursor.insertText(displayText + '\n');
-//         }
-
-//         previousHash = transaction.hash;
-//     }
-// }
-
 void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
     QByteArray previousHash;
-    bool hashMismatch = false;  // Reset hashMismatch for each file load
+    bool hashMismatch = false;
 
     ui->transactionsList->clear();
 
@@ -131,13 +90,85 @@ void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
 
 
 void MainWindow::openFile() {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), tr("CSV Files (*.csv)"));
+    //QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), tr("CSV Files (*.csv);;Text Files (*.txt)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), tr("Text Files (*.txt)"));
+
+    // if (!fileName.isEmpty()) {
+    //     filePath = fileName;
+    //     loadTransactions();
+    // }
     if (!fileName.isEmpty()) {
-        filePath = fileName;
-        loadTransactions();
+        decryptAndDisplayFile(fileName);
     }
 }
 
+void MainWindow::decryptAndDisplayFile(const QString &fileName)
+{
+    QByteArray encryptedData = readFileData(fileName);
+    if (encryptedData.isEmpty()) {
+        return;
+    }
+
+    QByteArray decryptedData;
+
+    QByteArray hash = QCryptographicHash::hash(pincode.toUtf8(), QCryptographicHash::Sha256);
+    unsigned char hash_key[32] = {0};
+    memcpy(hash_key, hash.data(), 32);
+
+    QString readableHash = QString::fromUtf8(hash.toHex());
+    qDebug() << pincode + " " + readableHash << " " << hash_key;
+
+    int decryptResult = decryptQByteArray(encryptedData, decryptedData, hash_key);
+    if (decryptResult != 0) {
+        QMessageBox::critical(this, "Error", "Decryption failed");
+        return;
+    }
+
+    qDebug() << "decryptedData " + decryptedData;
+}
+
+QByteArray MainWindow::readFileData(const QString &fileName)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, "Error", "Could not open file: " + file.errorString());
+        return QByteArray();
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+    return data;
+}
+
+
+void MainWindow::loadTransactions() {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Could not open transactions file");
+        return;
+    }
+
+    QTextStream in(&file);
+    QVector<Transaction> transactions;
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QStringList fields = line.split(',');
+
+        if (fields.size() != 4) {
+            continue;
+        }
+
+        Transaction transaction;
+        transaction.amount = fields[0];
+        transaction.walletNumber = fields[1];
+        transaction.date = fields[2];
+        transaction.hash = QByteArray::fromHex(fields[3].toUtf8());
+
+        transactions.append(transaction);
+    }
+
+    displayTransactions(transactions);
+}
 
 
 int MainWindow::decryptQByteArray(const QByteArray& encryptedBytes, QByteArray& decryptedBytes, unsigned char *key)

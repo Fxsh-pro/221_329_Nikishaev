@@ -29,16 +29,21 @@ public:
 private slots:
     void loadTransactions();
     void openFile();
-
+    void loadPincode();
 
 private:
-
     Ui::MainWindow *ui;
 
     QString filePath = "D:/educ-2c2s-cryptographic/exam/transactions.csv";
+    QString pincode;
 
     QByteArray calculateHash(const Transaction &transaction, const QByteArray &previousHash);
     void displayTransactions(const QVector<Transaction> &transactions);
+
+
+    void decryptAndDisplayFile(const QString &fileName);
+    QByteArray readFileData(const QString &fileName);
+
 
     int decryptQByteArray(const QByteArray& encryptedBytes, QByteArray& decryptedBytes, unsigned char *key);
     int encryptQByteArray(const QByteArray &plainBytes, QByteArray &encryptedBytes, unsigned char *key);

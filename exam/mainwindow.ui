@@ -154,48 +154,31 @@ QStackedWidget QWidget {
        </layout>
       </widget>
       <widget class="QWidget" name="mainPage">
-       <widget class="QPlainTextEdit" name="transactionsList">
-        <property name="geometry">
-         <rect>
-          <x>50</x>
-          <y>100</y>
-          <width>731</width>
-          <height>321</height>
-         </rect>
-        </property>
-       </widget>
-       <widget class="QLineEdit" name="lineEdit">
-        <property name="geometry">
-         <rect>
-          <x>340</x>
-          <y>30</y>
-          <width>131</width>
-          <height>41</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Транзакции</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignCenter</set>
-        </property>
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="uploadFileButton">
-        <property name="geometry">
-         <rect>
-          <x>570</x>
-          <y>560</y>
-          <width>201</width>
-          <height>71</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Загрузить файл</string>
-        </property>
-       </widget>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QLineEdit" name="lineEdit">
+          <property name="text">
+           <string>Транзакции</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPlainTextEdit" name="transactionsList"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="uploadFileButton">
+          <property name="text">
+           <string>Загрузить файл</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
