@@ -9,142 +9,163 @@
 #include <QJsonArray>
 
 #include <openssl/evp.h>
+#include <openssl/aes.h>
+#include <openssl/rand.h>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
+
     ui->setupUi(this);
+    ui->stackedWidget->setCurrentWidget(ui->mainPage);
 
-    ui->stackedWidget->setCurrentWidget(ui->gamePage);
-
-    // connect(ui->loginButton, &QPushButton::clicked, this, &MainWindow::onLoginButtonClicked);
-    // connect(ui->resetButton, &QPushButton::clicked, this, &MainWindow::onResetButtonClicked);
-
-    // for (int i = 0; i < 9; ++i) {
-    //     QPushButton *cardButton = findChild<QPushButton*>(QString("card%1").arg(i + 1));
-    //     if (cardButton) {
-    //         connect(cardButton, &QPushButton::clicked, this, &MainWindow::onCardClicked);
-    //     }
-    // }
-
-    // resetGame();
-    // loadGame();
+    connect(ui->uploadFileButton, &QPushButton::clicked, this, &MainWindow::openFile);
+    loadPincode();
+    qDebug() << "PINCODE  " + pincode;
+    loadTransactions();
 }
 
 MainWindow::~MainWindow() {
     delete ui;
 }
 
-
-
-
-
-
-
-int MainWindow::decryptQByteArray(const QByteArray& encryptedBytes, QByteArray& decryptedBytes, unsigned char *key)
-{
-    qDebug() << "Decrypting";
-    QByteArray iv_hex("00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f");
-    QByteArray iv_ba = QByteArray::fromHex(iv_hex);
-
-    unsigned char iv[16] = {0};
-    memcpy(iv, iv_ba.data(), 16);
-
-    EVP_CIPHER_CTX *ctx;
-    ctx = EVP_CIPHER_CTX_new();
-    if (!EVP_DecryptInit_ex2(ctx, EVP_aes_256_cbc(), key, iv, NULL)) {
-        qDebug() << "Error";
-        /* Error */
-        EVP_CIPHER_CTX_free(ctx);
-        return 0;
+void MainWindow::loadPincode() {
+    QString pincodeFilePath = "D:/educ-2c2s-cryptographic/exam/pincode.txt";
+    QFile file(pincodeFilePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Could not open pincode file");
+        return;
     }
 
-    #define BUF_LEN 256
-    unsigned char encrypted_buf[BUF_LEN] = {0}, decrypted_buf[BUF_LEN] = {0};
-    int encr_len, decr_len;
-
-    QDataStream encrypted_stream(encryptedBytes);
-
-    decryptedBytes.clear();
-    QBuffer decryptedBuffer(&decryptedBytes);
-    decryptedBuffer.open(QIODevice::ReadWrite);
-
-
-    encr_len = encrypted_stream.readRawData(reinterpret_cast<char*>(encrypted_buf), BUF_LEN);
-    while(encr_len > 0){
-
-        if (!EVP_DecryptUpdate(ctx, decrypted_buf, &decr_len, encrypted_buf, encr_len)) {
-            /* Error */
-            qDebug() << "Error";
-            EVP_CIPHER_CTX_free(ctx);
-            return 0;
-        }
-
-        decryptedBuffer.write(reinterpret_cast<char*>(decrypted_buf), decr_len);
-        encr_len = encrypted_stream.readRawData(reinterpret_cast<char*>(encrypted_buf), BUF_LEN);
+    QTextStream in(&file);
+    if (!in.atEnd()) {
+        pincode = in.readLine().trimmed();
+    } else {
+        QMessageBox::critical(this, "Error", "Pincode file is empty");
     }
 
-    int tmplen;
-    if (!EVP_DecryptFinal_ex(ctx, decrypted_buf, &tmplen)) {
-        /* Error */
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
-    }
-    decryptedBuffer.write(reinterpret_cast<char*>(decrypted_buf), tmplen);
-    EVP_CIPHER_CTX_free(ctx);
-
-    decryptedBuffer.close();
-    return 0;
+    file.close();
 }
 
-int MainWindow::encryptQByteArray(const QByteArray &plainBytes, QByteArray &encryptedBytes, unsigned char *key)
-{
-    qDebug() << "Encrypting";
+QByteArray MainWindow::calculateHash(const Transaction &transaction, const QByteArray &previousHash) {
+    QString concatenatedString = transaction.amount + transaction.walletNumber + transaction.date + QString(previousHash.toHex());
+    QByteArray data = concatenatedString.toUtf8();
+    auto hash = QCryptographicHash::hash(data, QCryptographicHash::Sha256);
+    QString readableHash = QString::fromUtf8(hash.toHex());
+    qDebug() << "transaction:" << concatenatedString;
+    qDebug() << "previousHash:" << previousHash.toHex();
+    qDebug() << "Hash for transaction:" << readableHash;
+    return hash;
+}
 
-    QByteArray iv_hex("00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f");
-    QByteArray iv_ba = QByteArray::fromHex(iv_hex);
-    unsigned char iv[16] = {0};
-    memcpy(iv, iv_ba.data(), 16);
+void MainWindow::displayTransactions(const QVector<Transaction> &transactions) {
+    QByteArray previousHash;
+    bool hashMismatch = false;
 
-    EVP_CIPHER_CTX *ctx;
-    ctx = EVP_CIPHER_CTX_new();
-    if (!EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, iv)) {
-        qDebug() << "Error: EVP_EncryptInit_ex";
-        EVP_CIPHER_CTX_free(ctx);
-        return 0;
-    }
+    ui->transactionsList->clear();
 
-    #define BUF_LEN 256
-    unsigned char encrypted_buf[BUF_LEN] = {0}, plain_buf[BUF_LEN] = {0};
-    int encr_len, plain_len;
+    QString headerText = "Сумма, Номер кошелька, Дата, Хэш\n";
 
-    QDataStream plain_stream(plainBytes);
+    QTextCursor cursor(ui->transactionsList->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    QTextCharFormat headerFormat;
+    cursor.insertText(headerText, headerFormat);
 
-    encryptedBytes.clear();
-    QBuffer encryptedBuffer(&encryptedBytes);
-    encryptedBuffer.open(QIODevice::ReadWrite);
+    for (const Transaction &transaction : transactions) {
+        QByteArray calculatedHash = calculateHash(transaction, previousHash);
+        bool hashesMatch = (calculatedHash == transaction.hash);
 
-    plain_len = plain_stream.readRawData(reinterpret_cast<char*>(plain_buf), BUF_LEN);
-    while (plain_len > 0) {
-        if (!EVP_EncryptUpdate(ctx, encrypted_buf, &encr_len, plain_buf, plain_len)) {
-            qDebug() << "Error: EVP_EncryptUpdate";
-            EVP_CIPHER_CTX_free(ctx);
-            return 0;
+        QString displayText = QString("%1, %2, %3, %4\n")
+                                  .arg(transaction.amount, transaction.walletNumber, transaction.date, transaction.hash.toHex());
+
+        QTextCharFormat format;
+        if (!hashesMatch || hashMismatch) {
+            format.setForeground(Qt::red);
+            hashMismatch = true;
         }
 
-        encryptedBuffer.write(reinterpret_cast<char*>(encrypted_buf), encr_len);
-        plain_len = plain_stream.readRawData(reinterpret_cast<char*>(plain_buf), BUF_LEN);
+        cursor.insertText(displayText, format);
+
+        previousHash = transaction.hash;
+    }
+}
+
+void MainWindow::openFile() {
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), tr("Encrypted Files (*.enc)"));
+
+    if (!fileName.isEmpty()) {
+        filePath = fileName;
+        loadPincode();
+        loadTransactions();
+    }
+}
+
+void MainWindow::loadTransactions() {
+
+    QFile file(filePath);
+    QByteArray decryptedData = decryptFile(filePath, pincode);
+    qDebug() << decryptedData;
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Could not open transactions file");
+        return;
     }
 
-    int tmplen;
-    if (!EVP_EncryptFinal_ex(ctx, encrypted_buf, &tmplen)) {
-        qDebug() << "Error: EVP_EncryptFinal_ex";
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
+    QTextStream in(&decryptedData);
+    QVector<Transaction> transactions;
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QStringList fields = line.split(',');
+
+        if (fields.size() != 4) {
+            continue;
+        }
+
+        Transaction transaction;
+        transaction.amount = fields[0];
+        transaction.walletNumber = fields[1];
+        transaction.date = fields[2];
+        transaction.hash = QByteArray::fromHex(fields[3].toUtf8());
+
+        transactions.append(transaction);
     }
 
-    encryptedBuffer.write(reinterpret_cast<char*>(encrypted_buf), tmplen);
-    EVP_CIPHER_CTX_free(ctx);
+    displayTransactions(transactions);
+}
 
-    encryptedBuffer.close();
-    return 0;
+QByteArray MainWindow::decryptFile(const QString &filePath, const QString &key)
+{
+    iv = QByteArray::fromHex("17e8e506e37fd4d63c2cfb6b85f8cfc2");
+
+    if (key.isEmpty() || key.length() != 64) {
+        QMessageBox::warning(this, "Ошибка", "Неверный ключ для расшифровки. Длина ключа должна быть 64 символа.");
+        return QByteArray();
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось открыть файл для чтения.");
+        return QByteArray();
+    }
+
+    QByteArray rowData = file.readAll();
+    file.close();
+
+    AES_KEY decryptKey;
+    QByteArray keyBytes = QByteArray::fromHex(key.toUtf8());
+    if (AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(keyBytes.constData()), 256, &decryptKey) < 0) {
+        QMessageBox::warning(this, "Ошибка", "Не удалось установить ключ для расшифровки.");
+        return QByteArray();
+    }
+
+    QByteArray decryptedData(rowData.size(), 0);
+    AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(rowData.constData()),
+                    reinterpret_cast<unsigned char*>(decryptedData.data()),
+                    rowData.size(),
+                    &decryptKey,
+                    reinterpret_cast<unsigned char*>(iv.data()),
+                    AES_DECRYPT);
+
+    int paddingLength = decryptedData.at(decryptedData.size() - 1);
+    decryptedData.chop(paddingLength);
+
+    return decryptedData;
 }
