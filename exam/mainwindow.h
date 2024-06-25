@@ -33,17 +33,14 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-
-    QString filePath = "D:/educ-2c2s-cryptographic/exam/transactions.csv";
+    QString filePath = "D:/educ-2c2s-cryptographic/exam/1.enc";
     QString pincode;
 
     QByteArray calculateHash(const Transaction &transaction, const QByteArray &previousHash);
     void displayTransactions(const QVector<Transaction> &transactions);
+    QByteArray iv;
 
-
-    void decryptAndDisplayFile(const QString &fileName);
-    QByteArray readFileData(const QString &fileName);
-
+    QByteArray decryptFile(const QString &filePath, const QString &key);
 
     int decryptQByteArray(const QByteArray& encryptedBytes, QByteArray& decryptedBytes, unsigned char *key);
     int encryptQByteArray(const QByteArray &plainBytes, QByteArray &encryptedBytes, unsigned char *key);
